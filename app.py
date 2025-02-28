@@ -26,6 +26,7 @@ taiwan_tz = pytz.timezone('Asia/Taipei')
 # 儲存前一次的指數值
 last_index_value = None
 last_check_time = None
+last_notification_date = None
 
 def get_fear_greed_index():
     """獲取恐懼貪婪指數"""
@@ -51,8 +52,16 @@ def get_fear_greed_index():
 
 def send_index_notification():
     """定時發送恐懼貪婪指數"""
+    global last_notification_date
+    
     if not USER_ID:
         print("未設定 USER_ID，無法發送通知")
+        return
+
+    current_date = datetime.now(taiwan_tz).date()
+    
+    # 檢查是否已經在今天發送過通知
+    if last_notification_date == current_date:
         return
 
     data = get_fear_greed_index()
@@ -60,6 +69,7 @@ def send_index_notification():
         message = f"⏰ 定時恐懼貪婪指數更新\n數值: {data['value']}\n狀態: {data['classification']}\n時間: {data['date']}"
         try:
             line_bot_api.push_message(USER_ID, TextSendMessage(text=message))
+            last_notification_date = current_date
         except Exception as e:
             print(f"發送通知時發生錯誤: {e}")
 
@@ -102,8 +112,8 @@ def check_index_change():
 scheduler = BackgroundScheduler(timezone=taiwan_tz)
 # 每天1點、9點、17點發送指數
 scheduler.add_job(send_index_notification, CronTrigger(hour='1,9,17', minute='0', timezone=taiwan_tz))
-# 每小時檢查一次指數變化
-scheduler.add_job(check_index_change, 'interval', hours=1)
+# 每2小時檢查一次指數變化
+scheduler.add_job(check_index_change, 'interval', hours=2)
 scheduler.start()
 
 @app.route('/')
