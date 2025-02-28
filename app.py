@@ -22,6 +22,10 @@ FEAR_GREED_API = 'https://api.alternative.me/fng/'
 def home():
     return 'Line Bot is running!'
 
+@app.route('/health')
+def health_check():
+    return 'OK'
+
 def get_fear_greed_index():
     """獲取恐懼貪婪指數"""
     try:
@@ -96,4 +100,4 @@ def handle_message(event):
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port) 
+    app.run(host='0.0.0.0', port=port, debug=True) 
