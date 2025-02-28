@@ -28,6 +28,26 @@ last_index_value = None
 last_check_time = None
 last_notification_date = None
 
+def calculate_position(fear_greed_value):
+    """計算建議倉位"""
+    cash_position = fear_greed_value / 3
+    market_position = 100 - cash_position
+    return {
+        'market': round(market_position, 1),
+        'cash': round(cash_position, 1)
+    }
+
+def get_position_emoji(value):
+    """根據倉位大小返回對應表情"""
+    if value >= 75:
+        return "🟢"
+    elif value >= 50:
+        return "🟡"
+    elif value >= 25:
+        return "🟠"
+    else:
+        return "🔴"
+
 def get_fear_greed_index():
     """獲取恐懼貪婪指數"""
     try:
@@ -41,14 +61,32 @@ def get_fear_greed_index():
             timestamp = latest['timestamp']
             date = datetime.fromtimestamp(int(timestamp))
             
+            # 計算建議倉位
+            position = calculate_position(float(value))
+            
             return {
                 'value': float(value),
                 'classification': classification,
-                'date': date.strftime('%Y-%m-%d %H:%M:%S')
+                'date': date.strftime('%Y-%m-%d %H:%M:%S'),
+                'position': position
             }
     except Exception as e:
         print(f"獲取恐懼貪婪指數時發生錯誤: {e}")
         return None
+
+def format_index_message(data):
+    """格式化指數訊息"""
+    position = data['position']
+    market_emoji = get_position_emoji(position['market'])
+    cash_emoji = get_position_emoji(position['cash'])
+    
+    return (f"加密貨幣恐懼貪婪指數\n"
+            f"數值: {data['value']}\n"
+            f"狀態: {data['classification']}\n"
+            f"時間: {data['date']}\n\n"
+            f"💡 倉位建議：\n"
+            f"{market_emoji} 市場部位: {position['market']}%\n"
+            f"{cash_emoji} 現金部位: {position['cash']}%")
 
 def send_index_notification():
     """定時發送恐懼貪婪指數"""
@@ -66,7 +104,7 @@ def send_index_notification():
 
     data = get_fear_greed_index()
     if data:
-        message = f"⏰ 定時恐懼貪婪指數更新\n數值: {data['value']}\n狀態: {data['classification']}\n時間: {data['date']}"
+        message = f"⏰ 定時恐懼貪婪指數更新\n" + format_index_message(data)
         try:
             line_bot_api.push_message(USER_ID, TextSendMessage(text=message))
             last_notification_date = current_date
@@ -93,12 +131,16 @@ def check_index_change():
         
         # 如果變化超過20，發送警報
         if change >= 20:
+            position = current_data['position']
             message = (f"⚠️ 恐懼貪婪指數大幅波動！\n"
                       f"當前數值: {current_value}\n"
                       f"前次數值: {last_index_value}\n"
                       f"變化幅度: {change:.1f}\n"
                       f"狀態: {current_data['classification']}\n"
-                      f"時間: {current_data['date']}")
+                      f"時間: {current_data['date']}\n\n"
+                      f"💡 最新倉位建議：\n"
+                      f"市場部位: {position['market']}%\n"
+                      f"現金部位: {position['cash']}%")
             try:
                 line_bot_api.push_message(USER_ID, TextSendMessage(text=message))
             except Exception as e:
@@ -152,7 +194,7 @@ def handle_message(event):
     if text in ['指數', '現在指數', 'index']:
         data = get_fear_greed_index()
         if data:
-            message = TextSendMessage(text=f"加密貨幣恐懼貪婪指數\n數值: {data['value']}\n狀態: {data['classification']}\n時間: {data['date']}")
+            message = TextSendMessage(text=format_index_message(data))
         else:
             message = TextSendMessage(text="抱歉，無法獲取指數資訊，請稍後再試。")
             
@@ -175,7 +217,13 @@ def handle_message(event):
             )
         )
     else:
-        message = TextSendMessage(text="您好！我是加密貨幣恐懼貪婪指數機器人\n輸入「指數」查看最新數據\n輸入「說明」查看使用說明\n\n已開啟功能：\n✅ 每天1點、9點、17點自動發送指數\n✅ 指數大幅波動(≧20)自動警報")
+        message = TextSendMessage(text="您好！我是加密貨幣恐懼貪婪指數機器人\n"
+                                     "輸入「指數」查看最新數據\n"
+                                     "輸入「說明」查看使用說明\n\n"
+                                     "已開啟功能：\n"
+                                     "✅ 每天1點、9點、17點自動發送指數\n"
+                                     "✅ 指數大幅波動(≧20)自動警報\n"
+                                     "✅ 自動計算建議倉位配置")
     
     line_bot_api.reply_message(event.reply_token, message)
 
